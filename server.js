@@ -1,42 +1,45 @@
 var express=require('express'),
     app=express(),
+    path=require('path'),
     expressSession=require("express-session");
+    router = express.Router(),
+    mongoose=require('mongoose'),
     server=require('http').createServer(app),
     io=require('socket.io').listen(server);
     app.set("view engine","ejs");
+    app.use(express.urlencoded({ extended: false }));
+    app.use(express.static(path.join(__dirname, 'public')));
+   mongoose.connect("mongodb+srv://severus:jcb@cluster0-ewize.mongodb.net/test?retryWrites=true&w=majority");
+   mongoose.set('useFindAndModify', false);
     router.use(expressSession({
         secret: 'sab ladkiyan rajput ki behen hai',
         resave: true,
         saveUninitialized: true
       }));
+  var Book=require("./models/book");
+  var Chat=require("./models/chats");
+  var User=require("./models/users");
 users=[];
 connections=[];
 app.listen(process.env.PORT||5000);
 console.log("server");
 app.get("/",(req,res)=>{
+  
+})
+app.get("/:id/home",isLoggedin,(req,res)=>{
 res.render("index");
 });
-io.sockets.on('connection',(socket)=>{
-    connections.push(socket);
-    console.log("connected: %s sockets connected",connections.length);
 
-    connections.splice(connections.indexOf(socket),1);
-    console.log("Disconnected: %s sockets connected",connections.length);
+router.get("/login",(req,res)=>{
+  res.render("landing");
 })
-router.post('/login', function (req, res) {
-    if(req.body.email.includes('@')){
-      res.redirect(307, '/in/login');
-    } else {
-      res.redirect(307, '/help/login');
-    }
-  });
+
 router.post("/login",(req,res)=>{
-    var uname=req.body.email;
+    var uname=req.body.username;
     var pass=req.body.password;
    
-    if(req.params.type=='help')
-    {
-      Help.findOne({usernam:uname},(err,found)=>{
+    
+      User.findOne({username:uname},(err,found)=>{
         if (err||found==null) {
           res.send("user not found"+uname+pass);
         } else {
@@ -44,39 +47,15 @@ router.post("/login",(req,res)=>{
           if (crypto.createHash('md5').update(pass).digest("hex") == hash) {
             req.session.eventdetails = found;
             req.session.loggedin=true;
-            res.redirect('/help/dashboard');
+            res.redirect("/"+found.id+"/home");
           } else {
-            req.session.loginerror = 'Wrong password help xD'
-            console.log("here");
+            req.session.loginerror = 'Wrong password xD'
             res.redirect('/login');            }
         }
         
       }) 
-     
-    }
-    else if(req.params.type=='in'){
-      In.findOne({username:uname},(err,found)=>{
-        if (err) {
-          res.send("not found");
-        } else {
-          var hash=found.password;
-          console.log(hash);
-          console.log(found.name);
-       if (crypto.createHash('md5').update(pass).digest("hex") == hash) {
-         req.session.eventdetails = found;
-         req.session.loggedin=true;
-         res.redirect('/in/'+found.name+'/dashboard');
-       } else {
-         req.session.loginerror = 'Wrong password in xD'
-         res.redirect('/login');            }
-        }
-        
-     }) 
-    }
-    else{
-      res.redirect("/");
-    }
   });
+
   function isLoggedin(req,res,next){
     if(req.session.loggedin==true){
     next();}
@@ -84,27 +63,78 @@ router.post("/login",(req,res)=>{
       res.redirect("/login");
     }
   }
-  router.get('/in/create/', function (req, res) {
-    var inte = req.query
-    for (var keys in inte) {
-      if (inte[keys] == undefined || inte[keys] == '') {
-        var incomplete = keys;
-        break;
-      }
+  router.post("/register",(req,res)=>{
+    var inte = req.body.details;
+    if(User.findOne(inte['username'])){
+      req.session.loginerror="Username already exists";
+      res.redirect("/login");
     }
-    if (incomplete != undefined) {
-      res.send('Some parameters are missing including ' + incomplete.toUpperCase());
-    } else {
-      
-      inte['queue'] = [];
-      inte['password'] = crypto.createHash('md5').update(req.query.password).digest("hex");
-      
-      In.create(inte, (err, createdEvent) => {
-        if (err) {
-          console.log(err);
-        } else {
-          res.send('Interviewee saved successfully');
+    else{
+    inte['password'] = crypto.createHash('md5').update(req.query.password).digest("hex");
+    User.create(inte, (err, created) => {
+            if (err) {
+              console.log(err);
+            } else {
+              res.redirect("/"+created.id+"/home");
+            }
+          })
         }
-      })
-    }
+
+  });
+router.get('/:id/home/add',isLoggedin,(req,res)=>{
+  User.findById(req.params.id,(err,found)=>{
+    res.render("list",{profile:found});
   })
+ 
+});
+router.post('/:id/home/add',isLoggedin,(req,res)=>{
+if(Book.findOne({name:req.body.book.name})){
+User.findById(req.params.id,(err,found)=>{
+  var booking={
+    bookname:req.body.book.name,
+    genere:req.body.book.genere
+  }
+found.book.push(booking);
+found.save();
+})}
+else{
+  Book.create(req.body.book,(err,found)=>{
+    User.findById(req.params.id,(err,found)=>{
+      var booking={
+        bookname:req.body.book.name,
+        genere:req.body.book.genere
+      }
+    found.book.push(booking);
+    found.save();
+    })
+  })
+}
+})
+router.get("/:id/home/match",(req,res)=>{
+    User.findById(req.params.id,(err,found)=>{
+      res.render("match",{profile:found});
+    })
+});
+router.post("/:id/home/match/:type",(req,res)=>{
+  User.findById(req.params.id,(err,found)=>{
+    User.find({location:found.location},(err,matchloc)=>{
+      var l=matchloc.length;
+      var b=[];
+      for (let index = 0; index < l; index++) {
+         for (let i = 0; i < matchloc[index].length; i++) {
+           
+           if(matchloc[index].book[i].bookname==req.params.type)
+              b.push(matchloc[index]);
+           
+         }
+        
+      }
+      
+      var obj={
+        matches:b
+      }
+      res.render("match",{profile1:found,profile2:obj})
+    })
+  })
+})
+  

@@ -1,5 +1,5 @@
 var mongoose=require('mongoose');
-const UserSchema={
+const ChatSchema={
     username1:{type:String,required:true},
     username2:{type:String,required:true},
     
@@ -10,4 +10,4 @@ const UserSchema={
          u2:{type:String}
      }]
 }
-module.exports=mongoose.model('User',UserSchema);
+module.exports=mongoose.model('Chat',ChatSchema);

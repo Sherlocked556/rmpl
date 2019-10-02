@@ -8,7 +8,9 @@ const UserSchema={
         {bookname:{type:String},
         genere:{type:String}
     }
+    
     ],
+    intrest:[{type:String}],
     requests:[
 {
     user:{type:String},
